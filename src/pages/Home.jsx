@@ -1,6 +1,5 @@
-import React from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { addCounter, minusCounter } from '../redux/conuter/counterSlice'
+import { addCounter, minusCounter } from '../redux/Counter/counterSlice'
 
 function Home() {
   const { timer } = useSelector((state) => state.count)
@@ -8,7 +7,6 @@ function Home() {
 
   return (
     <div>
-      Home
       <h1>{timer}</h1>
       <button onClick={() => dispatch(addCounter())}>add</button>
       <button onClick={() => dispatch(minusCounter())}>minus</button>
