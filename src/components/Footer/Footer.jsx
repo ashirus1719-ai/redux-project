@@ -3,7 +3,8 @@ import './Footer.css'
 function Footer() {
 	return (
 		<footer>
-			Footer
+			<span>Pizza / Lab</span>
+			<span>Собираем меню с вниманием к деталям</span>
 		</footer>
 	)
 }

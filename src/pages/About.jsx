@@ -21,7 +21,17 @@ function About() {
 	}
 
 	return (
-		<div className="todo-container">
+		<main className="todo-page">
+			<div className="todo-intro">
+				<p className="todo-kicker">Personal board</p>
+				<h1>Задачи на сегодня</h1>
+				<p>Небольшой список дел, который не требует лишнего шума.</p>
+			</div>
+			<div className="todo-container">
+				<div className="todo-heading">
+					<h2>Мой список</h2>
+					<span>{list.length} задач</span>
+				</div>
 			<form className="todo-form" onSubmit={handleSubmit}>
 				<input
 					type="text"
@@ -44,7 +54,8 @@ function About() {
 					/>
 				))}
 			</ul>
-		</div>
+			</div>
+		</main>
 	)
 }
 

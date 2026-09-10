@@ -8,12 +8,12 @@
 
 footer {
 	display: flex;
-	justify-content: center;
+	justify-content: space-between;
 	align-items: center;
-	background-color: black;
-	height: 50px;
-	color: white;
+	padding: 18px clamp(16px, 5vw, 72px);
+	background-color: #24221f;
+	color: #f5f0e8;
 	font-family: "MuseoModerno", sans-serif;
-	font-size: 24px;
+	font-size: 14px;
 	width: 100%;
 }

@@ -1,6 +1,7 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 import ProductCard from "../components/ProductCard/ProductCard";
+import "../styles/Message.css";
 
 const API_BASE_URL = "https://pizza-api-pj4j.onrender.com";
 const API_URL = `${API_BASE_URL}/api/v1/pizzas`;
@@ -109,7 +110,9 @@ function Panel() {
   const [products, setProducts] = useState([]);
   const [file, setFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
 
   const initialFormState = {
     title: "",
@@ -152,10 +155,14 @@ function Panel() {
         if (!isMounted) return;
         const payload = response.data;
         setProducts(Array.isArray(payload) ? payload : payload?.data ?? []);
+        setIsFetching(false);
       })
       .catch((error) => {
         console.error("Ошибка при загрузке пицц:", error);
-        if (isMounted) setMessage("Не удалось загрузить каталог товаров");
+        if (isMounted) {
+          setMessage("Не удалось загрузить каталог товаров");
+          setIsFetching(false);
+        }
       });
 
     return () => {
@@ -373,11 +380,28 @@ function Panel() {
     return url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
   };
 
-  return (
-    <main style={{ padding: "20px", fontFamily: "sans-serif" }}>
-      <h1>Управление товарами</h1>
+  const filteredProducts = products.filter((product) => {
+    const query = search.trim().toLowerCase();
+    return !query || `${product.title} ${product.description}`.toLowerCase().includes(query);
+  });
 
-      <form onSubmit={handleSubmit} style={styles.form}>
+  return (
+    <main className="catalog-page">
+      <div className="catalog-shell">
+        <section className="catalog-hero">
+          <div>
+            <p className="catalog-kicker">Pizza studio / inventory</p>
+            <h1 className="catalog-title">Каталог, который хочется открыть.</h1>
+            <p className="catalog-lead">Добавляйте новые позиции, собирайте коллекцию и держите меню в порядке в одном месте.</p>
+          </div>
+          <div className="catalog-summary" aria-label="Статистика каталога">
+            <div><strong>{products.length}</strong><span>Позиций</span></div>
+            <div><strong>{filteredProducts.length}</strong><span>На экране</span></div>
+          </div>
+        </section>
+
+      <div className="catalog-workspace">
+      <form className="catalog-form" onSubmit={handleSubmit} style={styles.form}>
         <h2>Добавить новый товар</h2>
 
         <div style={styles.inputGroup}>
@@ -459,9 +483,9 @@ function Panel() {
           {isLoading ? "Загрузка..." : "Добавить товар"}
         </button>
 
-        {message && <p style={{ marginTop: "10px", color: message.includes("успешно") ? "green" : "red" }}>{message}</p>}
-      </form>
+        
 
+      <div className="catalog-actions">
       <button type="button" disabled={isLoading} onClick={handleGenerate} style={styles.generateBtn}>
         {isLoading ? "Генерация..." : "Сгенерировать товары"}
       </button>
@@ -473,12 +497,16 @@ function Panel() {
       <button type="button" disabled={isLoading || products.length === 0} onClick={handleDeleteAll} style={styles.deleteAllBtn}>
         {isLoading ? "Удаление..." : "Удалить все товары"}
       </button>
-
-      <hr style={{ margin: "40px 0" }} />
-
-      <h2>Каталог товаров</h2>
-      <div style={styles.grid}>
-        {products.map((item) => (
+      </div>
+      </form>
+      <section className="catalog-results">
+      <div className="catalog-toolbar">
+        <h2 className="catalog-section-title">Каталог товаров</h2>
+        <input className="catalog-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Найти пиццу..." aria-label="Поиск товаров" />
+      </div>
+      {message && <p className="catalog-status" role="status">{message}</p>}
+      {isFetching ? <div className="catalog-empty">Загружаем каталог...</div> : filteredProducts.length === 0 ? <div className="catalog-empty">По вашему запросу ничего не найдено.</div> : <div className="product-grid">
+        {filteredProducts.map((item) => (
           <ProductCard
             key={item.id}
             product={item}
@@ -487,6 +515,10 @@ function Panel() {
             disabled={isLoading}
           />
         ))}
+      </div>
+      }
+      </section>
+      </div>
       </div>
     </main>
   );
