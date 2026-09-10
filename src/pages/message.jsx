@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
+import ProductCard from "../components/ProductCard/ProductCard";
 
 const API_BASE_URL = "https://pizza-api-pj4j.onrender.com";
 const API_URL = `${API_BASE_URL}/api/v1/pizzas`;
@@ -18,6 +19,18 @@ const PRODUCT_DESCRIPTIONS = [
   "Пикантные специи, запечённые овощи и фирменный соус",
   "Курица, душистые травы и румяная сырная корочка",
   "Сбалансированный вкус для большой компании",
+];
+
+const PIZZA_IMAGE_IDS = [
+  "1594007654729-407eedc4be65",
+  "1574071318508-1cdbab80d002",
+  "1579751626657-72bc17010498",
+  "1565299624946-b28f40a0ae38",
+  "1513104890138-7c749659a591",
+  "1571407970349-bc81e7e96d47",
+  "1571997478779-2adcbbe9ab2f",
+  "1604068549290-dea0e4a305ca",
+  "1590947132387-155cc02f3212",
 ];
 
 function randomItem(items) {
@@ -52,14 +65,24 @@ function createGeneratedProduct(name) {
 
 async function getBlobHash(blob) {
   const buffer = await blob.arrayBuffer();
-  const digest = await crypto.subtle.digest("SHA-256", buffer);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  if (globalThis.crypto?.subtle) {
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  let hash = 2166136261;
+  for (const byte of new Uint8Array(buffer)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${hash >>> 0}-${blob.size}-${blob.type}`;
 }
 
 async function downloadUniquePizzaImage(title, usedHashes) {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const lock = Math.floor(Math.random() * 1000000000) + attempt;
-    const url = `https://loremflickr.com/800/800/pizza?lock=${lock}`;
+    const imageId = PIZZA_IMAGE_IDS[Math.floor(Math.random() * PIZZA_IMAGE_IDS.length)];
+    const crop = ["center", "top", "bottom", "left", "right"][attempt % 5];
+    const url = `https://images.unsplash.com/photo-${imageId}?w=800&h=800&fit=crop&crop=${crop}&q=85&auto=format&v=${attempt}`;
     const response = await axios.get(url, { responseType: "blob" });
     const hash = await getBlobHash(response.data);
 
@@ -78,7 +101,7 @@ function createGeneratedProducts(count) {
   const names = [...PRODUCT_NAMES].sort(() => Math.random() - 0.5).slice(0, count);
   return names.map((name, index) => ({
     ...createGeneratedProduct(name),
-    imageUrl: `https://loremflickr.com/800/800/pizza?lock=${Date.now() + index}`,
+    imageUrl: PIZZA_IMAGE_IDS[index % PIZZA_IMAGE_IDS.length],
   }));
 }
 
@@ -113,17 +136,30 @@ function Panel() {
   const fetchProducts = async () => {
     try {
       const response = await axios.get(API_URL);
-      setProducts(Array.isArray(response.data) ? response.data : response.data.data ?? []);
+      const payload = response.data;
+      setProducts(Array.isArray(payload) ? payload : payload?.data ?? []);
     } catch (error) {
       console.error("Ошибка при загрузке пицц:", error);
+      setMessage("Не удалось загрузить каталог товаров");
     }
   };
 
   useEffect(() => {
-    const request = Promise.resolve().then(fetchProducts);
+    let isMounted = true;
+
+    axios.get(API_URL)
+      .then((response) => {
+        if (!isMounted) return;
+        const payload = response.data;
+        setProducts(Array.isArray(payload) ? payload : payload?.data ?? []);
+      })
+      .catch((error) => {
+        console.error("Ошибка при загрузке пицц:", error);
+        if (isMounted) setMessage("Не удалось загрузить каталог товаров");
+      });
 
     return () => {
-      void request;
+      isMounted = false;
     };
   }, []);
 
@@ -237,16 +273,16 @@ function Panel() {
 
     try {
       const generatedProducts = createGeneratedProducts(12);
-      const savedHashes = JSON.parse(localStorage.getItem("generatedPizzaImageHashes") || "[]");
+      let savedHashes = [];
+      try {
+        const storedHashes = JSON.parse(localStorage.getItem("generatedPizzaImageHashes") || "[]");
+        savedHashes = Array.isArray(storedHashes) ? storedHashes : [];
+      } catch {
+        savedHashes = [];
+      }
       const usedHashes = new Set(savedHashes);
       let createdCount = 0;
       let failedCount = 0;
-
-      await Promise.allSettled(products.map(async (product) => {
-        if (!product.imageUrl) return;
-        const response = await axios.get(getImageUrl(product.imageUrl), { responseType: "blob" });
-        usedHashes.add(await getBlobHash(response.data));
-      }));
 
       for (const product of generatedProducts) {
         try {
@@ -269,7 +305,11 @@ function Panel() {
         }
       }
 
-      localStorage.setItem("generatedPizzaImageHashes", JSON.stringify([...usedHashes]));
+      try {
+        localStorage.setItem("generatedPizzaImageHashes", JSON.stringify([...usedHashes]));
+      } catch {
+        console.warn("Не удалось сохранить историю изображений");
+      }
 
       setMessage(failedCount === 0
         ? `Автоматически добавлено товаров: ${createdCount}`
@@ -278,6 +318,51 @@ function Panel() {
     } catch (error) {
       console.error("Ошибка автогенерации:", error);
       setMessage("Не удалось автоматически добавить товары");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (products.length > 0 && !window.confirm("Удалить текущие товары и создать новый каталог?")) return;
+
+    setMessage("");
+    setIsLoading(true);
+
+    try {
+      const deleteResults = await Promise.allSettled(
+        products.map((product) => axios.delete(`${API_URL}/${product.id}`))
+      );
+      const deleteFailed = deleteResults.some((result) => result.status === "rejected");
+
+      if (deleteFailed) {
+        throw new Error("Не все старые товары удалось удалить");
+      }
+
+      const generatedProducts = createGeneratedProducts(12);
+      const savedHashes = [];
+      const usedHashes = new Set(savedHashes);
+      let createdCount = 0;
+
+      for (const product of generatedProducts) {
+        const formData = new FormData();
+        const productData = { ...initialFormState, ...product };
+        delete productData.imageUrl;
+        Object.keys(productData).forEach((key) => formData.append(key, productData[key]));
+        const image = await downloadUniquePizzaImage(product.title, usedHashes);
+        formData.append("image", image.file);
+        await axios.post(API_URL, formData);
+        usedHashes.add(image.hash);
+        createdCount += 1;
+      }
+
+      localStorage.setItem("generatedPizzaImageHashes", JSON.stringify([...usedHashes]));
+      setMessage(`Каталог обновлён. Добавлено товаров: ${createdCount}`);
+      await fetchProducts();
+    } catch (error) {
+      console.error("Ошибка обновления каталога:", error);
+      setMessage("Не удалось полностью обновить каталог");
+      await fetchProducts();
     } finally {
       setIsLoading(false);
     }
@@ -381,6 +466,10 @@ function Panel() {
         {isLoading ? "Генерация..." : "Сгенерировать товары"}
       </button>
 
+      <button type="button" disabled={isLoading} onClick={handleRegenerate} style={styles.regenerateBtn}>
+        {isLoading ? "Обновление..." : "Очистить и сгенерировать заново"}
+      </button>
+
       <button type="button" disabled={isLoading || products.length === 0} onClick={handleDeleteAll} style={styles.deleteAllBtn}>
         {isLoading ? "Удаление..." : "Удалить все товары"}
       </button>
@@ -390,28 +479,13 @@ function Panel() {
       <h2>Каталог товаров</h2>
       <div style={styles.grid}>
         {products.map((item) => (
-          <div key={item.id} style={styles.card}>
-            <div style={styles.imageWrapper}>
-              <img
-                src={getImageUrl(item.imageUrl)}
-                alt={item.title}
-                style={styles.image}
-              />
-            </div>
-            <h3 style={styles.title}>{item.title}</h3>
-            <p style={styles.description}>{item.description}</p>
-            <div style={styles.cardFooter}>
-              <span style={styles.price}>от {item.price} ₽</span>
-              <div style={styles.actionGroup}>
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  style={styles.deleteBtn}
-                >
-                  Удалить
-                </button>
-              </div>
-            </div>
-          </div>
+          <ProductCard
+            key={item.id}
+            product={item}
+            imageUrl={getImageUrl(item.imageUrl)}
+            onDelete={handleDelete}
+            disabled={isLoading}
+          />
         ))}
       </div>
     </main>
@@ -471,68 +545,22 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
   },
+  regenerateBtn: {
+    marginTop: "12px",
+    marginLeft: "8px",
+    padding: "12px 18px",
+    backgroundColor: "#1f2937",
+    color: "#fff",
+    border: "1px solid #1f2937",
+    borderRadius: "8px",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
     gap: "30px",
     marginTop: "20px",
-  },
-  card: {
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "space-between",
-    border: "1px solid #eee",
-    borderRadius: "18px",
-    padding: "12px",
-  },
-  imageWrapper: {
-    backgroundColor: "#fff0e6",
-    borderRadius: "14px",
-    padding: "15px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: "12px",
-  },
-  image: {
-    width: "100%",
-    maxWidth: "220px",
-    height: "220px",
-    objectFit: "contain",
-  },
-  title: {
-    fontSize: "20px",
-    fontWeight: "bold",
-    margin: "0 0 8px 0",
-  },
-  description: {
-    fontSize: "13px",
-    color: "#828282",
-    lineHeight: "1.3",
-    margin: "0 0 16px 0",
-    flexGrow: 1,
-  },
-  cardFooter: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  price: {
-    fontSize: "18px",
-    fontWeight: "bold",
-  },
-  actionGroup: {
-    display: "flex",
-    gap: "8px",
-  },
-  deleteBtn: {
-    backgroundColor: "#ff4d4f",
-    color: "#fff",
-    border: "none",
-    padding: "8px 14px",
-    borderRadius: "20px",
-    fontWeight: "bold",
-    cursor: "pointer",
   },
 };
 

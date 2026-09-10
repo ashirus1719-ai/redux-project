@@ -63,6 +63,10 @@
 }
 
 .todo-status {
+	padding: 0;
+	background: transparent;
+	border: 0;
+	cursor: pointer;
 	font-weight: bold;
 }
 
@@ -74,7 +78,7 @@
 	color: #dc2626;
 }
 
-.todo-item button {
+.todo-delete {
 	padding: 6px 12px;
 	background: rgb(255, 94, 94);
 	border: none;
@@ -84,7 +88,7 @@
 	transition: background 0.2s ease;
 }
 
-.todo-item button:hover {
+.todo-delete:hover {
 	background: #dc2626;
 }
 

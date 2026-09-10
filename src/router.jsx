@@ -22,10 +22,10 @@ const myRouter = createBrowserRouter([
                     path: "message",
                     element: <Panel />
                 },
-						{
-							path: "*",
-							element: <NotFound />
-						},
+                {
+                    path: "*",
+                    element: <NotFound />
+                },
         ]
     }
 ])

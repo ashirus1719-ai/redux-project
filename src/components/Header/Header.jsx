@@ -1,13 +1,13 @@
-import { NavLink } from 'react-router'
+import { NavLink } from 'react-router-dom'
 import './Header.css'
 
 function Header() {
 	return (
 		<header>
-			<NavLink to="/" className={({ isActive }) => (isActive ? 'active' : '')}>
+			<NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
 				Home
 			</NavLink>
-			<NavLink to="/About" className={({ isActive }) => (isActive ? 'active' : '')}>
+			<NavLink to="/about" className={({ isActive }) => (isActive ? 'active' : '')}>
 				About
 			</NavLink>
 			<NavLink to="/message" className={({ isActive }) => (isActive ? 'active' : '')}>
