@@ -5,6 +5,7 @@ function Footer() {
 		<footer>
 			<span>Pizza / Lab</span>
 			<span>Собираем меню с вниманием к деталям</span>
+			<span>{new Date().getFullYear()}</span>
 		</footer>
 	)
 }
